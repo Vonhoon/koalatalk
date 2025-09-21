@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    container_name: walkie-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"   # publish to host so cloudflared (on host) can reach http://localhost:8000
+    environment:
+      DB_BACKEND: "sqlite"
+      PORT: "8000"
+      SECRET_KEY: "769ae4dfd8f37d113b2c3685eaf4bf7dd320d6a5e1396a0877971bc2f60985a4"
+    volumes:
+      - ./storage:/app/storage
+      - ./static:/app/static
+

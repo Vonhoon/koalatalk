@@ -1,0 +1,16 @@
+{
+  "name": "KoalaTalk",
+  "short_name": "KoalaTalk",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#f2f2f7",
+  "theme_color": "#0a84ff",
+  "icons": [
+    { "src": "/icons/chat_icon72.png", "sizes": "72x72", "type": "image/png" },
+    { "src": "/icons/chat_icon192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/chat_icon512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/chat_maskable512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

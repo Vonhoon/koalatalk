@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+
+  <title>우리 가족 메신저앱</title>
+
+  <!-- PWA / Android fullscreen hints -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0a84ff">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <!-- NOTE: dev only. For production, ship a built CSS file -->
+  <link href="/output.css" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="mx-auto w-full max-w-[840px] px-4 py-2 flex items-center justify-between">
+      <div class="text-base font-semibold text-gray-900 select-none">KoalaTalk</div>
+      <div id="status" class="text-xs text-gray-500">연결 중…</div>
+    </div>
+  </header>
+
+  <!-- Channel bar -->
+  <nav class="chanbar">
+    <div class="mx-auto w-full max-w-[840px] px-4 py-2 flex items-center gap-3">
+      <span class="text-xs text-gray-500">채널</span>
+      <div class="flex gap-1" id="channelButtons">
+        <!-- Channels will be populated here by JavaScript -->
+      </div>
+      <div class="ml-auto text-[11px] text-gray-400 hidden sm:block">
+        <span class="font-medium text-gray-600">내 ID:</span> <span id="userIdDisplay">…</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Login modal -->
+  <div id="loginModal" class="fixed inset-0 z-40 flex items-center justify-center bg-black/20 backdrop-blur-sm" style="display:none">
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-200 w-[92%] max-w-[480px] p-5">
+      <h2 class="text-[15px] font-semibold text-gray-900 mb-2">로그인 (아빠/엄마/첫째/둘째)</h2>
+      <div class="flex flex-col gap-2">
+        <input id="loginId" class="px-4 py-2 rounded-xl border border-gray-300" placeholder="ID (예: 아빠)"/>
+        <input id="loginPw" type="password" class="px-4 py-2 rounded-xl border border-gray-300" placeholder="비밀번호"/>
+        <button id="loginBtn" class="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700">로그인</button>
+        <p id="loginErr" class="text-xs text-red-600 hidden">로그인 실패</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Confirm Modal -->
+  <div id="confirmModal" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/30 backdrop-blur-sm" style="display:none;">
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-200 w-[92%] max-w-[320px] p-5 text-center flex flex-col gap-4">
+      <p id="confirmModalText" class="text-base font-medium text-gray-800">이 메시지를 삭제할까요?</p>
+      <div class="grid grid-cols-2 gap-3">
+        <button id="confirmModalCancel" class="w-full px-4 py-2.5 rounded-xl bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300">취소</button>
+        <button id="confirmModalOk" class="w-full px-4 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <main class="scrollwrap">
+    <div class="mx-auto w-full max-w-[840px] h-full px-2 sm:px-4">
+      <ul id="chatList" class="flex flex-col gap-2"></ul>
+      <div id="bottomSpacer"></div>
+    </div>
+  </main>
+
+  <!-- Composer -->
+  <footer id="composer" class="composer">
+    <div class="mx-auto w-full max-w-[840px] px-3 sm:px-4">
+      <div class="bg-white rounded-2xl shadow border border-gray-200 p-3">
+        <form id="composerForm" class="flex items-center gap-2">
+          <button id="pttBtn" class="ptt small" type="button" aria-label="음성 녹음 시작/종료">
+            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmZmZmZiI+PHBhdGggZD0iTTEyIDE1YzEuNjYgMCAzLTEuMzQgMy0zVjZjMC0xLjY2LTEuMzQtMy0zLTNTOSAzLjM0IDkgNnY2YzAgMS42NiAxLjM0IDMgMyAzWk0xNy4zIDExaC0xLjA4YzAgMy4wNy0yLjQ0IDUuNS01LjUgNS41UzQuNzggMTQuMDcgNC43OCAxMUgzLjdjMCAzLjQxIDIuNzIgNi4yMyA2LjA4IDYuNzJWMjFoMS40NFYxNy43MmMzLjM2LS40OSA2LjA4LTMuMzEgNi4wOC02LjcyWiIvPjwvc3ZnPg==" alt="마이크">
+          </button>
+          <button id="addBtn" type="button"
+                  class="rounded-full bg-white border border-gray-300 text-gray-700">+</button>
+          <input id="fileInput" type="file" class="hidden" accept="*/*">
+          <input id="textInput" class="flex-1 px-4 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder="메시지 입력" autocomplete="off" autocapitalize="off" enterkeyhint="send"/>
+          <button id="sendTextBtn" class="btn-send rounded-xl bg-blue-600 text-white hover:bg-blue-700 select-none" type="submit"> 보내기 </button>
+        </form>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.min.js" defer></script>
+</script>
+</body>
+</html>
