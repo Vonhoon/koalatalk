@@ -114,7 +114,7 @@ class DB:
 
     def save_message(self, msg: Dict) -> int:
         return self._sql("""
-            INSERT INTO messages(channel, alias, user_id, type, text, audio_path, image_path, file_path, image_url, file_url, file_name, created_at)
+            INSERT INTO messages(channel, alias, user_id, type, text, audio_path, image_path, file_path, image_url, file_url, file_name, payload, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (msg.get("channel"), msg.get("alias"), msg.get("user_id"), msg.get("type"), msg.get("text"),
               msg.get("audio_path"), msg.get("image_path"), msg.get("file_path"), msg.get("image_url"),
