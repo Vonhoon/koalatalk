@@ -45,6 +45,7 @@ class DB:
                     image_url  TEXT,
                     file_url   TEXT,
                     file_name  TEXT,
+                    payload TEXT,
                     created_at INTEGER
                 )
             """)
@@ -114,7 +115,7 @@ class DB:
     def save_message(self, msg: Dict) -> int:
         return self._sql("""
             INSERT INTO messages(channel, alias, user_id, type, text, audio_path, image_path, file_path, image_url, file_url, file_name, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (msg.get("channel"), msg.get("alias"), msg.get("user_id"), msg.get("type"), msg.get("text"),
               msg.get("audio_path"), msg.get("image_path"), msg.get("file_path"), msg.get("image_url"),
               msg.get("file_url"), msg.get("file_name"), msg.get("created_at")))
@@ -208,6 +209,11 @@ class DB:
     def _row_to_msg(self, r) -> Optional[Dict]:
         if not r: return None
         out = dict(r)
+        if out.get("payload"):
+            try:
+                out["payload"] = json.loads(out["payload"])
+            except (json.JSONDecodeError, TypeError):
+                out["payload"] = None # Or handle error appropriately
         # Generate URLs for files
         if out.get("audio_path"):
             out["audio_url"] = f"/media/{os.path.basename(out['audio_path'])}"

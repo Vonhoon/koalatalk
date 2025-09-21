@@ -1,0 +1,226 @@
+--- a/app.py
++++ b/app.py
+@@ -279,6 +279,26 @@
+     session.pop("user", None)
+     return jsonify({"ok": True})
+ 
++@app.post("/api/webrtc/signal")
++def webrtc_signal():
++    user_from = session.get("user")
++    if not user_from:
++        return jsonify({"error": "auth required"}), 401
++    
++    data = request.get_json(silent=True) or {}
++    user_to = data.get("to")
++    payload = data.get("payload")
++
++    if not user_to or not payload:
++        return jsonify({"error": "missing 'to' or 'payload'"}), 400
++
++    # Publish the signal to the target user's meta stream
++    _publish(f"meta:{user_to}", {
++        "event": "webrtc_signal",
++        "data": { "from": user_from, "payload": payload }
++    })
++    
++    return jsonify({"ok": True})
++
+ @app.get("/api/channels")
+ def list_my_channels():
+     u = session.get("user")
+--- a/static/app.js
++++ b/static/app.js
+@@ -113,13 +113,11 @@
+     btn.className = "avatar";
+     btn.style.background = colorByAlias(alias);
+     btn.textContent = initialsFor(alias);
+-    // DM on click (ignore if it's me)
++    // DM/Call on click (ignore if it's me)
+     btn.addEventListener("click", async (e)=>{
+       e.stopPropagation();
+       if (alias === userAlias) return;
+-      const ok = await showConfirm(`${alias} 님과 1:1 대화를 시작할까요?`, "시작", "bg-blue-600 hover:bg-blue-700");
+-      if (!ok) return;
+-      await startDM(alias);
++      const ok = await showConfirm(`${alias} 님에게 영상통화를 거시겠습니까?`, "통화", "bg-green-600 hover:bg-green-700");
++      if (ok) { startCall(alias); }
+     });
+     return btn;
+   }
+@@ -634,6 +632,10 @@
+     metaSrc.addEventListener("channel", async (e)=>{
+       try { await refreshChannels(); } catch {}
+     });
++    metaSrc.addEventListener("webrtc_signal", (e) => {
++        const signal = JSON.parse(e.data);
++        handleSignalingData(signal);
++    });
+     metaSrc.addEventListener("ping", ()=>{});
+     metaSrc.onerror = ()=>{
+       try{ metaSrc.close(); }catch{} metaSrc=null;
+@@ -1086,3 +1088,139 @@
+       xhr.send(fd);
+     });
+   }
++}
++
++// ---------- WebRTC Video Call Logic ----------
++
++const videoCallModal = $('videoCallModal');
++const localVideo = $('localVideo');
++const remoteVideo = $('remoteVideo');
++const hangupBtn = $('hangupBtn');
++
++let peerConnection = null;
++let localStream = null;
++let remoteStream = null;
++let callTargetUser = null;
++
++// Use Google's public STUN servers
++const stunServers = {
++  iceServers: [
++    { urls: 'stun:stun.l.google.com:19302' },
++    { urls: 'stun:stun1.l.google.com:19302' },
++  ],
++};
++
++// Function to send signals via our backend
++async function sendSignal(to, payload) {
++  await fetch('/api/webrtc/signal', {
++    method: 'POST',
++    headers: { 'Content-Type': 'application/json' },
++    credentials: 'include',
++    body: JSON.stringify({ to, payload }),
++  });
++}
++
++// Main function to initialize and start a call
++async function startCall(targetUser) {
++  if (!targetUser || targetUser === userAlias) {
++    statusLine("자기 자신에게는 전화할 수 없습니다.", "error");
++    return;
++  }
++  callTargetUser = targetUser;
++  
++  try {
++    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
++    localVideo.srcObject = localStream;
++  } catch (error) {
++    console.error("Error accessing media devices.", error);
++    statusLine("카메라/마이크 접근에 실패했습니다.", "error");
++    return;
++  }
++  
++  videoCallModal.style.display = 'flex';
++
++  peerConnection = new RTCPeerConnection(stunServers);
++  
++  localStream.getTracks().forEach(track => {
++    peerConnection.addTrack(track, localStream);
++  });
++
++  peerConnection.onicecandidate = event => {
++    if (event.candidate) {
++      sendSignal(callTargetUser, { type: 'candidate', candidate: event.candidate });
++    }
++  };
++
++  peerConnection.ontrack = event => {
++    remoteStream = event.streams[0];
++    remoteVideo.srcObject = remoteStream;
++  };
++
++  const offer = await peerConnection.createOffer();
++  await peerConnection.setLocalDescription(offer);
++  sendSignal(callTargetUser, { type: 'offer', sdp: offer.sdp });
++  
++  statusLine(`${callTargetUser}님에게 전화 거는 중...`, "info");
++}
++
++// Function to handle incoming signals
++async function handleSignalingData(signal) {
++  switch (signal.payload.type) {
++    case 'offer':
++      const confirmed = await showConfirm(`${signal.from}님이 영상통화를 걸어왔습니다. 받으시겠습니까?`, "수락", "bg-green-600 hover:bg-green-700");
++      if (!confirmed) {
++        sendSignal(signal.from, { type: 'reject' });
++        return;
++      }
++      callTargetUser = signal.from;
++
++      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
++      localVideo.srcObject = localStream;
++      videoCallModal.style.display = 'flex';
++
++      peerConnection = new RTCPeerConnection(stunServers);
++      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
++      peerConnection.onicecandidate = event => {
++        if (event.candidate) sendSignal(callTargetUser, { type: 'candidate', candidate: event.candidate });
++      };
++      peerConnection.ontrack = event => {
++        remoteStream = event.streams[0];
++        remoteVideo.srcObject = remoteStream;
++      };
++      
++      await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.payload));
++      
++      const answer = await peerConnection.createAnswer();
++      await peerConnection.setLocalDescription(answer);
++      sendSignal(callTargetUser, { type: 'answer', sdp: answer.sdp });
++      statusLine(`${callTargetUser}님과 통화 중`, "success");
++      break;
++
++    case 'answer':
++      await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.payload));
++      statusLine(`${callTargetUser}님과 통화 중`, "success");
++      break;
++
++    case 'candidate':
++      if (peerConnection) {
++        await peerConnection.addIceCandidate(new RTCIceCandidate(signal.payload.candidate));
++      }
++      break;
++    case 'reject':
++        statusLine(`${signal.from}님이 통화를 거절했습니다.`, "info");
++        closeVideoCall();
++        break;
++    case 'hangup':
++        statusLine(`${signal.from}님이 통화를 종료했습니다.`, "info");
++        closeVideoCall();
++        break;
++  }
++}
++
++function closeVideoCall() {
++  if (peerConnection) { peerConnection.close(); peerConnection = null; }
++  if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
++  localVideo.srcObject = null; remoteVideo.srcObject = null;
++  videoCallModal.style.display = 'none'; callTargetUser = null;
++}
++
++hangupBtn.addEventListener('click', () => {
++    if (callTargetUser) { sendSignal(callTargetUser, { type: 'hangup' }); }
++    closeVideoCall();
++});
+--- a/static/index.html
++++ b/static/index.html
+@@ -74,6 +74,27 @@
+     </div>
+   </div>
+ 
++  +  <div id="videoCallModal" class="fixed inset-0 z-50 flex-col items-center justify-center bg-black/80 backdrop-blur-sm" style="display:none;">
++    <div class="relative w-full h-full">
++      +      <video id="remoteVideo" class="w-full h-full object-cover" autoplay playsinline></video>
++      
++      +      <video id="localVideo" class="absolute top-4 right-4 w-1/4 max-w-[200px] rounded-lg shadow-xl border-2 border-white" autoplay muted playsinline></video>
++      
++      +      <div class="absolute bottom-8 left-0 right-0 flex justify-center gap-4">
++        <button id="hangupBtn" class="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center">
++          +          <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.62.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.1-2.66 1.82-.18.18-.43.28-.7.28-.26 0-.51-.1-.7-.29-.39-.39-.39-1.03 0-1.42.9-.9 1.9-1.63 3.01-2.15-.36-.56-.63-1.18-.82-1.85-.24-.88-.37-1.8-.37-2.74 0-1.02.16-2.02.48-2.97.22-.65.53-1.27.91-1.84.4-.6.88-1.14 1.43-1.62C8.17 2.38 9.04 2 10 2c.28 0 .55.04.81.11.42.12.82.29 1.19.51.37.21.71.48 1.02.78.69.69 1.21 1.53 1.5 2.45.15.48.25.98.29 1.48.05.51.07 1.02.07 1.54 0 1.66-1.34 3-3 3zm-1.29-8.21c-.22-.12-.46-.2-.71-.2-.81 0-1.55.31-2.12.88-.47.47-.85.99-1.13 1.55-.29.58-.49 1.2-.62 1.85-.3.88-.46 1.8-.46 2.74 0 .84.12 1.67.34 2.45.19.68.46 1.32.82 1.91C7.8 10.2 9.25 10 10.71 10c.05 0 .1 0 .16.02-1.74-.75-2.9-2.5-2.9-4.54 0-.41.05-.82.14-1.21.17-.75.52-1.44 1.02-2.02.49-.57 1.1-1.04 1.78-1.38-.4-.14-.81-.22-1.23-.22z"/></svg>
++        </button>
++      </div>
++    </div>
++  </div>
++
+   <main class="scrollwrap">
+     <div class="mx-auto w-full max-w-[840px] h-full px-2 sm:px-4">
