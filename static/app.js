@@ -237,12 +237,13 @@ let isAuthed = false;
 let authCheckInFlight = null;
 let messageIdSet = new Set();
 
+let currentCallInviteMsgId = null;
+
 const loginModal = $("loginModal");
 const loginId = $("loginId");
 const loginPw = $("loginPw");
 const loginBtn = $("loginBtn");
 const loginErr = $("loginErr");
-
 
 // ---------- windowed history (3-day chunks) ----------
 const WINDOW_DAYS = 3;
@@ -1333,8 +1334,8 @@ async function startCall(targetUser) {
 // NEW acceptCall function
 async function acceptCall(msg) {
   if (!msg || !msg.payload) return;
-  
-  callTargetUser = msg.alias;
+  currentCallInviteMsgId = msg.id;
+  callTargetUser = msg.alias; 
 
   // 1. Get local media
   try {
@@ -1357,7 +1358,14 @@ async function acceptCall(msg) {
     if (event.candidate) sendSignal(callTargetUser, { type: 'candidate', candidate: event.candidate });
   };
   peerConnection.ontrack = event => {
-    remoteVideo.srcObject = event.streams[0];
+    const remoteStream = event.streams[0];
+    remoteVideo.srcObject = remoteStream;
+
+    // 4. Set audio to play through speakers
+    // Note: This is a best-effort attempt. Browser support for setSinkId can be inconsistent.
+    if (typeof remoteVideo.setSinkId === 'function') {
+      remoteVideo.setSinkId('default'); // 'default' often corresponds to speakers
+    }
   };
 
   // 4. Set the offer from the message and create an answer
@@ -1405,6 +1413,13 @@ cancelCallBtn.addEventListener('click', () => {
 
 
 function closeVideoCall() {
+  if (currentCallInviteMsgId) {
+    fetch(`/api/messages/${currentCallInviteMsgId}/end_call`, {
+      method: 'POST',
+      credentials: 'include'
+    });
+    currentCallInviteMsgId = null;
+  }
   // --- NEW LOGIC ADDED HERE ---
   outgoingCallPreview.classList.add('hidden'); // Hide the small preview
   outgoingLocalVideo.srcObject = null;
@@ -1423,6 +1438,16 @@ function closeVideoCall() {
   videoCallModal.style.display = 'none';
   callTargetUser = null;
 }
+
+metaSrc.addEventListener("message_update", (e) => {
+    const updatedMsg = JSON.parse(e.data);
+    const msgLi = document.querySelector(`li[data-msg-id="${updatedMsg.id}"]`);
+    if (msgLi) {
+        // Re-render the message bubble with the new content
+        const newBubble = buildMsgNode(updatedMsg);
+        msgLi.parentNode.replaceChild(newBubble, msgLi);
+    }
+});
 
 hangupBtn.addEventListener('click', () => {
     if (callTargetUser) { sendSignal(callTargetUser, { type: 'hangup' }); }

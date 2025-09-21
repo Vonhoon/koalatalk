@@ -389,6 +389,36 @@ def delete_message_route(msg_id: int):
         print("[ERROR] DELETE /api/messages:", e, flush=True)
         return jsonify({"error": "internal"}), 500
 
+# Add this new route to app.py
+
+@app.post("/api/messages/<int:msg_id>/end_call")
+def end_call_message(msg_id: int):
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "auth required"}), 401
+
+    try:
+        msg = db.get_message(msg_id)
+        if not msg:
+            return jsonify({"error": "not found"}), 404
+
+        # Basic check to see if user is part of the DM
+        channel_key = msg.get("channel", "")
+        if not channel_key.startswith("dm:") or user not in channel_key:
+             return jsonify({"error": "forbidden"}), 403
+
+        new_text = "📞 통화 종료" # "Call ended"
+        db.update_message_text(msg_id, new_text)
+
+        updated_msg = db.get_message(msg_id)
+        _publish(channel_key, {"event": "message_update", "data": updated_msg})
+        
+        return jsonify({"ok": True, "message": updated_msg})
+    except Exception as e:
+        print(f"[ERROR] end_call_message: {e}", flush=True)
+        return jsonify({"error": "internal"}), 500
+
+
 @app.post("/api/messages")
 def create_message():
     try:

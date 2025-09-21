@@ -59,7 +59,7 @@ class DB:
             """)
             cur.execute("PRAGMA table_info(messages)")
             cols = {row[1] for row in cur.fetchall()}
-            wanted = {"audio_path": "TEXT", "image_path": "TEXT", "file_path": "TEXT", "image_url": "TEXT", "file_url": "TEXT", "file_name": "TEXT"}
+            wanted = {"audio_path": "TEXT", "image_path": "TEXT", "file_path": "TEXT", "image_url": "TEXT", "file_url": "TEXT", "file_name": "TEXT", "payload": "TEXT"}
             for name, typ in wanted.items():
                 if name not in cols:
                     cur.execute(f"ALTER TABLE messages ADD COLUMN {name} {typ}")
@@ -112,13 +112,18 @@ class DB:
         cutoff = self._now() - int(days * 86400)
         self._sql("DELETE FROM subscriptions WHERE last_seen IS NOT NULL AND last_seen < ?", (cutoff,))
 
+    # Add this function to the DB class in db.py
+
+    def update_message_text(self, msg_id: int, new_text: str):
+        self._sql("UPDATE messages SET type='text', text=? WHERE id=?", (new_text, msg_id))
+
     def save_message(self, msg: Dict) -> int:
         return self._sql("""
             INSERT INTO messages(channel, alias, user_id, type, text, audio_path, image_path, file_path, image_url, file_url, file_name, payload, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (msg.get("channel"), msg.get("alias"), msg.get("user_id"), msg.get("type"), msg.get("text"),
-              msg.get("audio_path"), msg.get("image_path"), msg.get("file_path"), msg.get("image_url"),
-              msg.get("file_url"), msg.get("file_name"), msg.get("created_at")))
+            msg.get("audio_path"), msg.get("image_path"), msg.get("file_path"), msg.get("image_url"),
+            msg.get("file_url"), msg.get("file_name"), msg.get("payload"), msg.get("created_at")))
 
     def get_message(self, msg_id: int) -> Optional[Dict]:
         r = self._sql("SELECT * FROM messages WHERE id=?", (msg_id,), fetch="one")
