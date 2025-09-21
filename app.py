@@ -450,8 +450,17 @@ def create_message():
             )
             if not channel: return jsonify({"error": "channel required"}), 400
             if mtype == "text" and not text: return jsonify({"error": "text required"}), 400
-            payload = data.get("payload") # Add this line
-            msg = {"channel": channel, "alias": alias, "user_id": user_id, "type": mtype, "text": text, "payload": json.dumps(payload), "created_at": now_ts()} # Modify this line
+            
+            # --- REPLACE THE ORIGINAL msg LINE WITH THIS BLOCK ---
+            payload = data.get("payload")
+            msg = {
+                "channel": channel, "alias": alias, "user_id": user_id, 
+                "type": mtype, "text": text, 
+                "payload": json.dumps(payload) if payload else None,
+                "created_at": now_ts()
+            }
+            # --- END REPLACEMENT ---
+
             msg_id  = db.save_message(msg)
             msg_out = db.get_message(msg_id)
 

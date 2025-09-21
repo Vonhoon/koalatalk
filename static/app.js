@@ -717,32 +717,36 @@ function buildMsgNode(msg) {
 
   const bubble = document.createElement("div");
   bubble.className = "bubble " + (isMe ? "me" : "other");
+
   if (msg.type === 'call_invite') {
-      bubble.style.background = isMe ? '#4a5568' : '#e2e8f0';
+      bubble.style.background = isMe ? '#4a5568' : '#e2e8f0'; // Gray colors
       bubble.style.color = isMe ? 'white' : 'black';
-      const callText = document.createElement('span');
-      callText.textContent = isMe ? 'Calling...' : `${msg.alias} is calling...`;
+      
+      const callText = document.createElement('div'); // Use a div for better spacing
+      callText.className = 'font-semibold';
+      callText.textContent = isMe ? '영상 통화 거는 중...' : `${msg.alias}님의 영상 통화`;
       bubble.appendChild(callText);
 
+      // Add Accept/Decline buttons for the receiver
       if (!isMe) {
           const btnGroup = document.createElement('div');
           btnGroup.className = 'mt-2 flex gap-2';
           
           const acceptBtn = document.createElement('button');
-          acceptBtn.textContent = 'Accept';
-          acceptBtn.className = 'px-3 py-1 rounded bg-green-500 text-white';
-          acceptBtn.onclick = () => acceptCall(msg); // This now works because 'msg' has the payload
+          acceptBtn.textContent = '수락'; // Korean for "Accept"
+          // Green button styling
+          acceptBtn.className = 'px-4 py-1.5 text-sm rounded-lg bg-green-500 hover:bg-green-600 text-white font-semibold';
+          acceptBtn.onclick = () => acceptCall(msg);
           
           const declineBtn = document.createElement('button');
-          declineBtn.textContent = 'Decline';
-          declineBtn.className = 'px-3 py-1 rounded bg-red-500 text-white';
+          declineBtn.textContent = '거절'; // Korean for "Decline"
+          declineBtn.className = 'px-4 py-1.5 text-sm rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold';
 
-          btnGroup.appendChild(acceptBtn);
           btnGroup.appendChild(declineBtn);
+          btnGroup.appendChild(acceptBtn);
           bubble.appendChild(btnGroup);
       }
   } 
-  // ... (the rest of the function is the same)
   else if (msg.type === "voice" && msg.audio_url) {
     bubble.textContent = (isMe ? "나" : msg.alias) + "의 음성 메시지";
     const btn = document.createElement("button");
@@ -782,12 +786,11 @@ function buildMsgNode(msg) {
   const meta = document.createElement("div");
   meta.className = "text-[10px] text-gray-400 px-1";
   const when = msg.created_at ? new Date(msg.created_at * 1000) : new Date();
-  meta.textContent =
-    `${isMe ? "나" : msg.alias || ""} • ${when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  meta.textContent = `${isMe ? "나" : msg.alias || ""} • ${when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 
   stack.appendChild(bubble);
   stack.appendChild(meta);
-
+  
   if (isMe) { 
     row.appendChild(stack); 
     row.appendChild(avatar); 
